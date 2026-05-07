@@ -91,8 +91,20 @@ def _cn_num(s):
 
 
 def p_age(text):
-    # 1) "女 38" / "男 30" — 性别字后紧跟 2 位数字（必须不是 4 位数年份/k/万）
-    m = re.search(r'[男女][^\d]{0,3}(\d{2})(?!\d)(?!\s*[kK万岁])', text)
+    # 1) "女 38" / "男 30" / "M30" / "F38" — 性别字后紧跟 2 位数字（必须不是 4 位数年份/k/万）
+    m = re.search(r'[男女MmFf][^\d]{0,3}(\d{2})(?!\d)(?!\s*[kK万岁])', text)
+    if m:
+        a = int(m.group(1))
+        if 20 <= a <= 65:
+            return a
+    # 1b) "38岁女" / "30岁男" / "38岁，女" — 数字在前
+    m = re.search(r'(\d{2})\s*岁(?:\s*[，,])?\s*[男女]', text)
+    if m:
+        a = int(m.group(1))
+        if 20 <= a <= 65:
+            return a
+    # 1c) "男，28" / "女，35" / "男 28" — 性别后跟逗号或空格再跟数字
+    m = re.search(r'[男女][，,\s]+(\d{2})(?!\d)', text)
     if m:
         a = int(m.group(1))
         if 20 <= a <= 65:
@@ -143,17 +155,27 @@ def p_age(text):
 
 def p_gender(text):
     # 强信号：单身女 / 未婚男 / "男 38" / "女，27岁" / 男性 / 女性
-    if re.search(r'(?:单身|未婚|已婚|离婚)女', text):
+    if re.search(r'(?:单身|未婚|已婚|离婚)女|女(?:性|生|士|子|）|，|,|\s|\d|$)', text):
         return 'F'
-    if re.search(r'(?:单身|未婚|已婚|离婚)男', text):
+    if re.search(r'(?:单身|未婚|已婚|离婚)男|男(?:性|生|士|子|）|，|,|\s|\d|$)', text):
         return 'M'
     if re.search(r'女(?:性|生|士|，|,|\s|\d)', text) or re.search(r'^女', text):
         return 'F'
     if re.search(r'男(?:性|生|士|，|,|\s|\d)', text) or re.search(r'^男', text):
         return 'M'
-    if re.search(r'\b(?:female|她|girl|woman)\b', text, re.I):
+    # SM标记：新加坡性别代码（SM=女性 Sponsor Mark）
+    if re.search(r'\bsm[12]\b|\bSM[12]\b', text, re.I):
+        return 'F'  # SM 通常代表女性申请者
+    if re.search(r'\b(?:female|她|girl|woman|ms\.|mrs\.|妈妈|老婆|妻子|女娃|女儿)\b', text, re.I):
         return 'F'
-    if re.search(r'\b(?:male|他|boy|man)\b', text, re.I):
+    if re.search(r'\b(?:male|他|boy|man|mr\.|老公|丈夫|爸爸|男娃|儿子)\b', text, re.I):
+        return 'M'
+    # 隐性信号：家庭角色或生活信息
+    if re.search(r'(?:怀孕|生孩子|生娃|孕妇|宝宝)[，,\s]?女', text):
+        return 'F'
+    if re.search(r'带女儿|女儿[，,\s]|妈妈级|新妈妈|妈妈带', text):
+        return 'F'
+    if re.search(r'带儿子|儿子[，,\s]|爸爸级|新爸爸|爸爸带', text):
         return 'M'
     return None
 
@@ -197,6 +219,10 @@ def p_income_monthly(text):
         (r'月\s*收入\s*(\d+(?:\.\d+)?)\s*[kK]',                     1000),
         (r'(?:工资|薪水|salary)\s*[:：]?\s*(\d+(?:\.\d+)?)\s*[kK](?!\s*[/每]年|\s*年薪)', 1000),
         (r'(\d+(?:\.\d+)?)\s*[kK]\s*(?:per\s*month|/month|a\s*month|/月|每月|月薪)', 1000),
+        (r'月入\s*(\d+(?:\.\d+)?)\s*[kK]',                          1000),
+        (r'月入\s*(\d+(?:\.\d+)?)\s*[万w]',                         10000),
+        (r'工资\s*(\d+(?:\.\d+)?)\s*[kK](?![/]年)',                  1000),
+        (r'工资\s*(\d+(?:\.\d+)?)\s*[万w]',                         10000),
     ]
     for pat, mult in monthly_pats:
         m = re.search(pat, text, re.I)
@@ -216,6 +242,8 @@ def p_income_monthly(text):
         (r'年\s*(\d+)\s*-\s*\d+\s*[kK]',                             1000),  # "年350-400k" 取低值
         (r'(\d+(?:\.\d+)?)\s*[kK]\s*(?:per\s*year|/year|/年|每年|annual)', 1000),
         (r'annual(?:\s*(?:income|salary))?\s*\$?(\d+(?:\.\d+)?)\s*[kK]', 1000),
+        (r'年入\s*(\d+(?:\.\d+)?)\s*[万w]',                          10000),
+        (r'年入\s*(\d+(?:\.\d+)?)\s*[kK]',                          1000),
     ]
     for pat, mult in annual_pats:
         m = re.search(pat, text, re.I)
@@ -224,6 +252,21 @@ def p_income_monthly(text):
             monthly = annual / 12
             if 1500 <= monthly <= 200000:
                 return round(monthly, 0)
+
+    # 上下文推断：无前缀的数字k - 如果出现在薪资相关上下文中，倾向于识别为月薪
+    # 例如："sm1，金融，15k，结婚" -> 15k 可能是月薪
+    # 使用启发式：如果 Xk 出现在"申请"、"年"、"月"、"结婚"、"工作"附近且 X < 100，认为是月薪
+    m = re.search(r'(\d{1,2})\s*k(?![A-Za-z])', text, re.I)
+    if m:
+        val = float(m.group(1)) * 1000
+        # 检查上下文，确保这不是年份或其他用法
+        ctx_start = max(0, m.start() - 30)
+        ctx_end = min(len(text), m.end() + 20)
+        ctx = text[ctx_start:ctx_end]
+        # 如果在"申请、薪、月、年、工作、收入、底薪"附近，识别为月薪
+        if re.search(r'申请|薪|月|年|工作|收入|底薪', ctx):
+            if 1500 <= val <= 200000:
+                return val
     return None
 
 
@@ -302,13 +345,27 @@ def p_pr_duration_years(text, apply_year=None):
                 y += 0.5
             if 0 <= y <= 30:
                 return y
-    # "pr快三年" "pr近三年" "pr接近三年"
-    m = re.search(r'(?:PR|pr)\s*(?:快|近|接近|约|大概|刚好)\s*([一二三四五六七八九十]+)年(半)?', text)
+    # "pr快三年" "pr近三年" "pr接近三年" "pr满一年" "pr刚满两年" "pr快满一年"
+    m = re.search(r'(?:PR|pr)\s*(?:快|近|接近|约|大概|刚好|满|刚满|快满)\s*([一二三四五六七八九十]+)年(半)?', text)
     if m:
         s = m.group(1)
         y = CN_NUM.get(s)
         if y and 0 <= y <= 30:
             return float(y) + (0.5 if m.group(2) else 0)
+    # "PR满1年+" / "PR满1年时" / "PR快满2年"数字版本
+    m = re.search(r'(?:PR|pr)\s*(?:快|近|接近|约|大概|刚好|满|刚满|快满)\s*(\d+(?:\.\d+)?)\s*年', text)
+    if m:
+        y = float(m.group(1))
+        if 0 <= y <= 30:
+            return y
+    # "PR第5年" / "第5年PR" 表示持有第X个年头
+    m = re.search(r'(?:PR|pr)第\s*(\d+)\s*年|第\s*(\d+)\s*年(?:PR|pr)', text)
+    if m:
+        y_str = m.group(1) or m.group(2)
+        if y_str:
+            y = float(y_str)
+            if 0 <= y <= 30:
+                return y
     # "pr X 个月"
     m = re.search(r'(?:PR|pr)\s*(\d+)\s*个?月', text)
     if m:
@@ -331,10 +388,10 @@ def p_pr_duration_years(text, apply_year=None):
 
 def p_children(text):
     # 显式无孩
-    if re.search(r'(?:已婚)?未育|没有孩子|无孩|无小孩|无娃|丁克|DINK|无子女|0\s*child', text, re.I):
+    if re.search(r'(?:已婚)?未育|没有孩子|无孩|无小孩|无娃|丁克|DINK|无子女|0\s*child|无娃儿|childless', text, re.I):
         return 0
     # "X个孩子/小孩/娃/儿子/女儿"
-    m = re.search(r'(\d+)\s*个?\s*(?:孩子|小孩|娃|儿子|女儿|baby|child|kid)', text, re.I)
+    m = re.search(r'(\d+)\s*个?\s*(?:孩子|小孩|娃|儿子|女儿|baby|child|kid|kids)', text, re.I)
     if m:
         n = int(m.group(1))
         if 0 <= n <= 6:
@@ -344,34 +401,44 @@ def p_children(text):
         if re.search(rf'{cn}\s*(?:个)?\s*(?:孩子|小孩|娃|儿子|女儿)', text):
             return n
     # 单子/单女信号
-    if re.search(r'带(?:女儿|儿子|娃|宝宝|baby|新生儿)|一个(?:女儿|儿子|娃)|单女|独子|独女', text, re.I):
+    if re.search(r'带(?:女儿|儿子|娃|宝宝|baby|新生儿)|一个(?:女儿|儿子|娃)|单女|独子|独女|单亲|男娃|女娃', text, re.I):
         return 1
-    if re.search(r'怀孕|有娃|有孩|有娃儿|有小孩', text):
+    if re.search(r'怀孕|有娃|有孩|有娃儿|有小孩|孕妇|准妈妈|准爸爸|新妈妈|新爸爸', text):
         return 1
-    # "孩子X岁" / "儿子X岁" / "女儿X岁" 隐含至少一个孩子
-    if re.search(r'(?:孩子|儿子|女儿|小孩|娃)\s*\d{1,2}\s*岁', text):
+    # "孩子X岁" / "儿子X岁" / "女儿X岁" / "娃X岁" 隐含至少一个孩子
+    if re.search(r'(?:孩子|儿子|女儿|小孩|娃|男娃|女娃)\s*\d{1,2}\s*岁', text):
+        return 1
+    # "K2男娃" / "K1女娃" 新加坡幼儿园级别
+    if re.search(r'[KN]\d+\s*(?:男|女)娃', text, re.I):
+        return 1
+    # 家庭组合词汇
+    if re.search(r'全家申请|家庭申请|一家人申请|带家人|全家|一起申请的|小孩一起申请|娃一起', text):
         return 1
     return None
 
 
 def p_property(text):
-    if re.search(r'(?:HDB|组屋|公寓|condo(?:minium)?|landed|有房|自住|买房|房产|有一套|政府房|私宅|公寓房)', text, re.I):
+    if re.search(r'(?:HDB|组屋|公寓|condo(?:minium)?|landed|有房|自住|买房|房产|有一套|政府房|私宅|公寓房|self-owned|own|mortgage|已有房|有不动产|名下有|拥有房)', text, re.I):
         return True
-    if re.search(r'(?:租房|无房|no\s*property|没买房|没房子)', text, re.I):
+    if re.search(r'(?:租房|无房|no\s*property|没买房|没房子|无不动产|名下无|租屋|公租房|租住)', text, re.I):
         return False
     return None
 
 
 def p_industry(text):
+    # 注：工程/建筑/房产需要在IT之前检查，避免"工程"被错误识别为IT
     checks = [
-        ('IT/科技',   r'(?:码农|软件|程序员|工程师|互联网|科技|coding|programmer|developer|engineer|software|SWE|SDE|devops|AI|machine\s*learn|ML|backend|frontend|data\s*scien|CS本科|CS硕|半导体|tech)'),
-        ('金融',      r'(?:金融|银行|保险|投资|基金|会计|财务|fintech|bank|finance|investment|fund|insurance|trader|quant|accounting)'),
+        ('工程/建筑', r'(?:建筑|土木工程|机械工程|电气工程|材料工程|结构工程|civil\s*engineer|mechanical\s*engineer|architect|construction|建筑师|结构师|施工|梁工|钢构)'),
+        ('房产/建筑', r'(?:房产|房地产|房子|买房|卖房|地产|real\s*estate|real-estate)'),
+        ('IT/科技',   r'(?:码农|软件|程序员|互联网|科技|coding|programmer|developer|software|SWE|SDE|devops|AI|machine\s*learn|ML|backend|frontend|data\s*scien|CS本科|CS硕|半导体|tech|\bIT\b|\bit\b|system\s*engineer)'),
+        ('金融',      r'(?:金融|银行|保险|投资|基金|会计|财务|fintech|bank|finance|investment|fund|insurance|trader|quant|accounting|CFO|treasurer)'),
         ('医疗',      r'(?:医疗|医生|护士|医院|药|医药|dentist|doctor|nurse|hospital|pharma|clinic|medical|healthcare)'),
         ('教育/科研', r'(?:教育|老师|教师|教授|研究|科研|科研员|博士后|学术|teacher|professor|academic|research|lecturer|tutor)'),
         ('商业/管理', r'(?:咨询|经理|管理|销售|市场|运营|商业|HR|consulting|consultant|manager|management|marketing|sales|retail|business)'),
-        ('工程/建筑', r'(?:建筑|土木|机械|电气|材料工程|civil|mechanical|architect|construction)'),
         ('法律',      r'(?:律师|法律|law|attorney|legal|paralegal)'),
         ('创业/自雇', r'(?:创业|自雇|自营|开公司|股东|freelance|self.employ|entrepreneur|startup)'),
+        ('贸易/物流', r'(?:贸易|进出口|物流|运输|supply\s*chain|logistics|trading|import|export)'),
+        ('其他工程',  r'(?:工程|engineer)'),  # 兜底，其他未分类的工程
     ]
     for name, pat in checks:
         if re.search(pat, text, re.I):
