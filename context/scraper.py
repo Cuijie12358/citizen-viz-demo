@@ -153,7 +153,8 @@ def p_age(text):
     return None
 
 
-def p_gender(text):
+def _detect_raw_gender(text):
+    """识别原始性别 'M'/'F'/None"""
     # 强信号：单身女 / 未婚男 / "男 38" / "女，27岁" / 男性 / 女性
     if re.search(r'(?:单身|未婚|已婚|离婚)女|女(?:性|生|士|子|）|，|,|\s|\d|$)', text):
         return 'F'
@@ -165,18 +166,62 @@ def p_gender(text):
         return 'M'
     # SM标记：新加坡性别代码（SM=女性 Sponsor Mark）
     if re.search(r'\bsm[12]\b|\bSM[12]\b', text, re.I):
-        return 'F'  # SM 通常代表女性申请者
+        return 'F'
     if re.search(r'\b(?:female|她|girl|woman|ms\.|mrs\.|妈妈|老婆|妻子|女娃|女儿)\b', text, re.I):
         return 'F'
     if re.search(r'\b(?:male|他|boy|man|mr\.|老公|丈夫|爸爸|男娃|儿子)\b', text, re.I):
         return 'M'
-    # 隐性信号：家庭角色或生活信息
     if re.search(r'(?:怀孕|生孩子|生娃|孕妇|宝宝)[，,\s]?女', text):
         return 'F'
     if re.search(r'带女儿|女儿[，,\s]|妈妈级|新妈妈|妈妈带', text):
         return 'F'
     if re.search(r'带儿子|儿子[，,\s]|爸爸级|新爸爸|爸爸带', text):
         return 'M'
+    return None
+
+
+# "一起申请" 类关键词（夫妻共同申请）
+JOINT_APPLY_PAT = r'共同申请|一起申请|一家申请|全家申请|全家|两人申请|夫妻申请|夫妻共同|与妻子申请|与丈夫申请|带妻子|带丈夫|妻子也申请|丈夫也申请'
+
+
+def p_gender(text):
+    """
+    返回申请类型：
+      '单身男' / '单身女' — 未婚 + 性别
+      '夫妻'           — 已婚 + 共同申请关键词
+      '已婚男' / '已婚女' — 已婚但未明确共同申请
+      None             — 信息不足
+    """
+    raw_gender = _detect_raw_gender(text)
+    marital    = p_marital(text)
+
+    is_joint = bool(re.search(JOINT_APPLY_PAT, text))
+
+    # 已婚 + 共同申请 → 夫妻（性别可不明确）
+    if marital == '已婚' and is_joint:
+        return '夫妻'
+
+    # 单身/未婚分支
+    if marital in ('单身', '离异'):
+        if raw_gender == 'F':
+            return '单身女'
+        if raw_gender == 'M':
+            return '单身男'
+        return None
+
+    # 已婚但未明确共同申请
+    if marital == '已婚':
+        if raw_gender == 'F':
+            return '已婚女'
+        if raw_gender == 'M':
+            return '已婚男'
+        return None
+
+    # 婚况未知 — 仅有性别信号时，按单身保守归类
+    if raw_gender == 'F':
+        return '单身女'
+    if raw_gender == 'M':
+        return '单身男'
     return None
 
 
@@ -557,6 +602,13 @@ body{background:#0d0d1a;color:#e0e0e0;font-family:'Segoe UI',system-ui,sans-seri
 
 table{width:100%;border-collapse:collapse;font-size:0.78rem}
 th{background:#0d0d1a;color:#666;font-weight:600;text-transform:uppercase;font-size:0.66rem;letter-spacing:.5px;padding:8px 10px;text-align:left;border-bottom:1px solid #1e1e3a;white-space:nowrap}
+th[data-sort]{cursor:pointer;user-select:none;position:relative;padding-right:18px}
+th[data-sort]:hover{color:#bbb}
+th[data-sort]::after{content:'\2195';position:absolute;right:6px;opacity:0.3;font-size:0.7rem}
+th.sort-asc{color:#EF3340}
+th.sort-asc::after{content:'\25B2';opacity:1;color:#EF3340}
+th.sort-desc{color:#EF3340}
+th.sort-desc::after{content:'\25BC';opacity:1;color:#EF3340}
 td{padding:8px 10px;border-bottom:1px solid #181830;vertical-align:middle}
 tr:hover td{background:#181830}
 td:last-child{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#888}
@@ -636,6 +688,10 @@ td:last-child{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space
         <h3>家庭状况 vs 申请结果</h3>
         <div class="chart-wrap"><canvas id="c-family"></canvas></div>
       </div>
+      <div class="chart-card">
+        <h3>申请类型 vs 申请结果</h3>
+        <div class="chart-wrap"><canvas id="c-gender"></canvas></div>
+      </div>
     </div>
 
     <div class="table-section">
@@ -646,9 +702,17 @@ td:last-child{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space
       <table>
         <thead>
           <tr>
-            <th>用户名</th><th>结果</th><th>月收入</th><th>学历</th>
-            <th>年龄</th><th>在新(年)</th><th>PR年限</th>
-            <th>家庭</th><th>行业</th><th>申请日期</th><th>条件摘要</th>
+            <th data-sort="username">用户名</th>
+            <th data-sort="result_norm">结果</th>
+            <th data-sort="monthly_income" data-num="1">月收入</th>
+            <th data-sort="education">学历</th>
+            <th data-sort="age" data-num="1">年龄</th>
+            <th data-sort="years_in_sg" data-num="1">在新(年)</th>
+            <th data-sort="pr_duration_years" data-num="1">PR年限</th>
+            <th data-sort="gender">申请类型</th>
+            <th data-sort="industry">行业</th>
+            <th data-sort="apply_date" data-num="1">申请日期</th>
+            <th>条件摘要</th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
@@ -711,7 +775,7 @@ function renderStats() {
 // ---- Coverage ----
 const COV_FIELDS = [
   {k:'age',             l:'年龄'},
-  {k:'gender',          l:'性别'},
+  {k:'gender',          l:'申请类型'},
   {k:'marital',         l:'婚姻'},
   {k:'education',       l:'学历'},
   {k:'monthly_income',  l:'月收入'},
@@ -885,6 +949,10 @@ function renderCharts() {
     return '婚况未知';
   };
   mkBar('c-family', famCats, groupByResult(d, famFn, famCats));
+
+  // 9. 申请类型（gender 字段：单身男/单身女/夫妻/已婚男/已婚女）
+  const genCats = ['单身男','单身女','夫妻','已婚男','已婚女'];
+  mkBar('c-gender', genCats, groupByResult(d, r=>r.gender, genCats));
 }
 
 // ---- Table ----
@@ -902,12 +970,6 @@ function renderTable() {
 
   const fmt = v => v!==null&&v!==undefined ? v : '-';
   const fmtIncome = v => v ? 'S$'+(Math.round(v/100)/10)+'k' : '-';
-  const fmtFamily = r => {
-    if (r.marital==='单身') return '单身';
-    if (r.marital==='已婚') return r.children ? `已婚 ${r.children}孩` : '已婚';
-    if (r.children) return `有孩(${r.children})`;
-    return '-';
-  };
   const summary = s => s.length>55 ? s.slice(0,55)+'…' : s;
 
   document.getElementById('tbody').innerHTML = slice.length ? slice.map(r => `
@@ -919,12 +981,55 @@ function renderTable() {
       <td>${fmt(r.age)}</td>
       <td>${fmt(r.years_in_sg)}</td>
       <td>${r.pr_duration_years!==null&&r.pr_duration_years!==undefined ? r.pr_duration_years+'年' : '-'}</td>
-      <td>${fmtFamily(r)}</td>
+      <td>${fmt(r.gender)}</td>
       <td>${fmt(r.industry)}</td>
       <td>${r.apply_date||'-'}</td>
       <td title="${r.conditions.replace(/"/g,'&quot;')}">${summary(r.conditions)}</td>
     </tr>`).join('') : '<tr><td colspan="11" class="no-data">无匹配数据</td></tr>';
 }
+
+// ---- Sort ----
+let sortKey = null;
+let sortDir = 1;  // 1 asc, -1 desc
+
+function sortBy(key, isNum) {
+  if (sortKey === key) {
+    sortDir = -sortDir;
+  } else {
+    sortKey = key;
+    sortDir = isNum ? -1 : 1;  // 数值字段默认降序（大的在前），文本字段默认升序
+  }
+  filtered.sort((a, b) => {
+    let va = a[key], vb = b[key];
+    const aNull = va===null||va===undefined||va==='';
+    const bNull = vb===null||vb===undefined||vb==='';
+    if (aNull && bNull) return 0;
+    if (aNull) return 1;   // null 始终在末尾
+    if (bNull) return -1;
+    if (isNum) {
+      // 日期字符串按字典序与时间序一致；数字直接比
+      const na = typeof va === 'string' ? va : Number(va);
+      const nb = typeof vb === 'string' ? vb : Number(vb);
+      return na < nb ? -sortDir : na > nb ? sortDir : 0;
+    }
+    return String(va).localeCompare(String(vb)) * sortDir;
+  });
+  // 更新表头样式
+  document.querySelectorAll('th[data-sort]').forEach(th => {
+    th.classList.remove('sort-asc','sort-desc');
+    if (th.dataset.sort === key) {
+      th.classList.add(sortDir === 1 ? 'sort-asc' : 'sort-desc');
+    }
+  });
+  curPage = 0;
+  renderTable();
+}
+
+document.querySelectorAll('th[data-sort]').forEach(th => {
+  th.addEventListener('click', () => {
+    sortBy(th.dataset.sort, th.dataset.num === '1');
+  });
+});
 
 function prevPage(){ curPage--; renderTable(); }
 function nextPage(){ curPage++; renderTable(); }
