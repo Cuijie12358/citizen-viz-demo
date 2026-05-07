@@ -1077,13 +1077,16 @@ def main():
         time.sleep(0.8)
 
     print(f"\n  共获取 {len(all_records)} 条记录，去重中...")
-    # 基于 username 的去重：保留每个用户的最后一条记录（最新）
-    seen = {}
+    # 精确去重：基于 (username, apply_date, result 前 30 字) 三元组
+    # 这样可以保留同一用户的不同次申请，仅过滤真正重复的状态更新
+    seen_keys = set()
+    unique_records = []
     for r in all_records:
-        if r['username']:  # 只对有用户名的记录去重
-            seen[r['username']] = r
-    # 无用户名的记录也保留
-    unique_records = list(seen.values()) + [r for r in all_records if not r['username']]
+        result_prefix = r['result'][:30] if r.get('result') else ''
+        key = (r.get('username', ''), r.get('apply_date', ''), result_prefix)
+        if key not in seen_keys:
+            seen_keys.add(key)
+            unique_records.append(r)
 
     print(f"  去重后 {len(unique_records)} 条记录，开始解析字段...")
     enriched = [enrich(r) for r in unique_records]
