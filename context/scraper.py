@@ -13,6 +13,7 @@ import time
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 BASE_URL = "https://sgprapp.com/citizen"
 TOTAL_PAGES = 21  # 实际分页 1..21
@@ -636,6 +637,56 @@ td:last-child{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space
 .no-data{text-align:center;color:#444;padding:40px 0;font-size:0.85rem}
 
 @media(max-width:900px){.charts-grid{grid-template-columns:1fr}.sidebar{display:none}}
+
+/* === 预测工具样式 === */
+.nav-btn{width:100%;text-align:left;padding:8px 12px;background:transparent;border:1px solid transparent;color:#aaa;cursor:pointer;font-size:0.85rem;border-radius:6px;margin-bottom:4px;transition:all .15s}
+.nav-btn:hover{background:#1e1e3a;color:#fff}
+.nav-btn.active{background:#EF334022;color:#EF3340;border-color:#EF334055}
+.view{display:none}
+.view.active{display:block}
+
+.predict-card{background:#12122a;border:1px solid #1e1e3a;border-radius:10px;padding:22px;margin-bottom:16px}
+.predict-card h2{font-size:1.05rem;color:#fff;margin-bottom:6px}
+.predict-card p.hint{color:#888;font-size:0.82rem;margin-bottom:14px;line-height:1.6}
+.predict-input{width:100%;min-height:110px;background:#0d0d1a;border:1px solid #1e1e3a;border-radius:8px;padding:12px;color:#e0e0e0;font-family:inherit;font-size:0.9rem;line-height:1.6;resize:vertical;outline:none}
+.predict-input:focus{border-color:#EF3340}
+.predict-actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.predict-btn{background:#EF3340;border:none;color:#fff;padding:8px 22px;border-radius:6px;cursor:pointer;font-size:0.9rem;font-weight:600;transition:all .15s}
+.predict-btn:hover{background:#d12b36}
+.predict-btn:disabled{opacity:.5;cursor:default}
+.example-btn{background:#1e1e3a;border:1px solid #2a2a4e;color:#aaa;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:0.78rem}
+.example-btn:hover{background:#2a2a4e;color:#fff}
+.model-meta{color:#555;font-size:0.72rem;margin-left:auto}
+
+.proba-card{background:linear-gradient(135deg,#12122a 0%,#1a1a3e 100%);border:1px solid #1e1e3a;border-radius:10px;padding:24px;margin-bottom:16px;text-align:center}
+.proba-num{font-size:3.2rem;font-weight:700;background:linear-gradient(90deg,#EF3340,#ff6b6b);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;line-height:1}
+.proba-label{color:#888;font-size:0.85rem;margin-top:8px;letter-spacing:1px}
+.proba-bar-wrap{height:8px;background:#0d0d1a;border-radius:4px;margin-top:18px;overflow:hidden}
+.proba-bar{height:100%;background:linear-gradient(90deg,#F44336 0%,#FF9800 50%,#4CAF50 100%);border-radius:4px;transition:width .6s ease}
+.proba-tier{display:inline-block;margin-top:14px;padding:4px 14px;border-radius:14px;font-size:0.78rem;font-weight:600}
+.tier-high{background:rgba(76,175,80,.18);color:#4CAF50}
+.tier-mid{background:rgba(255,152,0,.18);color:#FF9800}
+.tier-low{background:rgba(244,67,54,.18);color:#F44336}
+
+.analysis-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+.analysis-card{background:#12122a;border:1px solid #1e1e3a;border-radius:10px;padding:16px}
+.analysis-card h3{font-size:0.85rem;color:#bbb;margin-bottom:12px;display:flex;align-items:center;gap:6px}
+.analysis-list{list-style:none;font-size:0.82rem;color:#ccc;line-height:1.85}
+.analysis-list li{padding:5px 0;border-bottom:1px dashed #1e1e3a}
+.analysis-list li:last-child{border-bottom:none}
+.analysis-list .icon{display:inline-block;width:18px}
+
+.feat-table{width:100%;font-size:0.82rem}
+.feat-table th,.feat-table td{padding:6px 8px;text-align:left;border-bottom:1px solid #1e1e3a}
+.feat-table th{color:#777;font-size:0.7rem;text-transform:uppercase;letter-spacing:.5px}
+.feat-table td.miss{color:#888;font-style:italic}
+
+.suggestion-list{list-style:decimal inside;font-size:0.85rem;color:#ccc;line-height:1.95;padding-left:6px}
+.suggestion-list li{padding:3px 0}
+
+.predict-empty{text-align:center;color:#555;padding:50px 0;font-size:0.88rem}
+
+@media(max-width:900px){.analysis-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -650,6 +701,10 @@ td:last-child{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space
 
 <div class="layout">
   <aside class="sidebar">
+    <h4>视图</h4>
+    <button class="nav-btn active" data-view="dashboard" onclick="switchView('dashboard')">数据仪表盘</button>
+    <button class="nav-btn" data-view="predict" onclick="switchView('predict')">预测工具</button>
+
     <h4>结果筛选</h4>
     <label class="filter-item"><input type="checkbox" class="rf" value="通过" checked><span class="dot" style="background:#4CAF50"></span>通过</label>
     <label class="filter-item"><input type="checkbox" class="rf" value="杯具" checked><span class="dot" style="background:#F44336"></span>杯具</label>
@@ -663,6 +718,7 @@ td:last-child{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space
   </aside>
 
   <main class="main">
+    <div id="view-dashboard" class="view active">
     <div class="charts-grid">
       <div class="chart-card">
         <h3>申请结果分布</h3>
@@ -731,6 +787,30 @@ td:last-child{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space
         <button id="btn-next" onclick="nextPage()">下一页</button>
       </div>
     </div>
+    </div><!-- /view-dashboard -->
+
+    <div id="view-predict" class="view">
+      <div class="predict-card">
+        <h2>申请成功率预测</h2>
+        <p class="hint">
+          粘贴或输入申请人的简要信息（自由文本，与历史样本风格相似即可）。系统会自动提取年龄、学历、收入、PR 年限等关键特征，并基于历史 273 条已结案样本训练的随机森林模型给出成功率预测与建议。
+          <br><span style="color:#666">本工具仅供参考，预测结果不代表官方决定。</span>
+        </p>
+        <textarea id="predict-input" class="predict-input" placeholder="例如：男，35岁，硕士，在新加坡5年，PR2年，金融行业，月薪15k SGD，已婚有一个小孩，有房产，准备申请..."></textarea>
+        <div class="predict-actions">
+          <button class="predict-btn" id="btn-predict" onclick="runPredict()">开始预测</button>
+          <button class="example-btn" onclick="fillExample(0)">示例 1</button>
+          <button class="example-btn" onclick="fillExample(1)">示例 2</button>
+          <button class="example-btn" onclick="fillExample(2)">示例 3</button>
+          <span class="model-meta" id="model-meta"></span>
+        </div>
+      </div>
+      <div id="predict-result">
+        <div class="predict-card predict-empty">
+          输入申请信息后点击"开始预测"，结果将在此显示。
+        </div>
+      </div>
+    </div><!-- /view-predict -->
   </main>
 </div>
 
@@ -1050,6 +1130,324 @@ function render() {
 
 renderCoverage();
 render();
+
+// ============================================================
+// 预测工具
+// ============================================================
+const MODEL = __MODEL__;
+
+function switchView(name){
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+name));
+}
+
+const EXAMPLES = [
+  '男，35岁，硕士，在新加坡5年，PR2年，金融行业，月薪15k SGD，已婚有一个小孩，有房产。',
+  '女，28岁，本科，2018年来坡，21年PR，码农，月入8k，单身，租房。',
+  '38岁男，博士，来新10年，PR满4年，半导体行业，年薪18w SGD，老婆+两小孩，已购组屋。',
+];
+function fillExample(i){ document.getElementById('predict-input').value = EXAMPLES[i]; }
+
+if (MODEL && MODEL.metrics) {
+  const m = MODEL.metrics;
+  document.getElementById('model-meta').textContent =
+    `模型: RandomForest · 训练 ${m.n_train} 条 · CV ${(m.cv_mean*100).toFixed(1)}% ± ${(m.cv_std*100).toFixed(1)}%`;
+}
+
+// ---- 前端特征提取（与 scraper.py 的 regex 子集对齐） ----
+const CURRENT_YEAR = new Date().getFullYear();
+
+function extAge(t){
+  let m;
+  m = t.match(/(\d{2})\s*岁/); if(m) return +m[1];
+  m = t.match(/(\d{2})后/); if(m){ const yy=+m[1]; const yr=yy>=50?1900+yy:2000+yy; return CURRENT_YEAR-yr; }
+  m = t.match(/(?:男|女)[，,\s]*(\d{2})(?![年月千万kK])/); if(m) return +m[1];
+  m = t.match(/(\d{2})\s*(?:男|女)/); if(m) return +m[1];
+  m = t.match(/年龄\s*[:：]?\s*(\d{2})/); if(m) return +m[1];
+  m = t.match(/(\d{4})年生/); if(m) return CURRENT_YEAR-(+m[1]);
+  return null;
+}
+function extGender(t){
+  if(/单身男|男娃|未婚男|SM\b/.test(t)) return '单身男';
+  if(/单身女|女娃|未婚女|SF\b/.test(t)) return '单身女';
+  if(/已婚男|有老婆|有妻|带老婆|妻子|配偶女|带太太/.test(t)) return '已婚男';
+  if(/已婚女|有老公|带老公|丈夫|配偶男|带先生/.test(t)) return '已婚女';
+  if(/^|[^未]男(?![性老女])/.test(t) && /男/.test(t)) return '男';
+  if(/女/.test(t) && !/女儿/.test(t.replace(/.{0,2}女儿/,''))) return '女';
+  return null;
+}
+function extMarital(t){
+  if(/已婚|结婚|配偶|老婆|老公|妻子|丈夫|太太|先生/.test(t)) return '已婚';
+  if(/单身|未婚/.test(t)) return '单身';
+  if(/离婚|离异/.test(t)) return '离异';
+  return null;
+}
+function extEducation(t){
+  if(/博士|PhD|phd/.test(t)) return '博士';
+  if(/硕士|master|MBA|本坡硕|海硕|研究生/i.test(t)) return '硕士';
+  if(/本科|学士|bachelor|本坡本|CS本科/i.test(t)) return '本科';
+  if(/大专|专科|diploma/i.test(t)) return '大专';
+  if(/高中|中专/.test(t)) return '高中';
+  return null;
+}
+function extIncome(t){
+  // 月薪 Xk 或 X千
+  let m = t.match(/月(?:薪|收入|入)\s*[约~]?\s*(\d+(?:\.\d+)?)\s*[kK千]/);
+  if(m) return Math.round(+m[1]*1000);
+  m = t.match(/月(?:薪|收入|入)\s*[约~]?\s*(\d{4,6})/);
+  if(m) return +m[1];
+  // 年薪 Xw / Xk
+  m = t.match(/年(?:薪|收入|入|包)\s*[约~]?\s*(\d+(?:\.\d+)?)\s*[wW万]/);
+  if(m) return Math.round(+m[1]*10000/12);
+  m = t.match(/年(?:薪|收入|入|包)\s*[约~]?\s*(\d+(?:\.\d+)?)\s*[kK千]/);
+  if(m) return Math.round(+m[1]*1000/12);
+  // 无前缀的 Xk 在 "薪/月/申请" 上下文
+  m = t.match(/(?:薪|工资|挣|赚|拿)\s*[约~]?\s*(\d+(?:\.\d+)?)\s*[kK]/);
+  if(m) return Math.round(+m[1]*1000);
+  return null;
+}
+function extYearsInSg(t){
+  let m = t.match(/(?:在|来|到|住)新?加?坡?\s*(\d+(?:\.\d+)?)\s*年/);
+  if(m) return +m[1];
+  m = t.match(/(\d{4})年来(?:坡|新|新加坡)/);
+  if(m) return CURRENT_YEAR-(+m[1]);
+  m = t.match(/来新\s*(\d+)\s*年/);
+  if(m) return +m[1];
+  return null;
+}
+function extPrYears(t){
+  let m = t.match(/PR\s*(\d+(?:\.\d+)?)\s*年/i);
+  if(m) return +m[1];
+  m = t.match(/(\d+(?:\.\d+)?)\s*年\s*PR/i);
+  if(m) return +m[1];
+  m = t.match(/PR\s*一年半/i); if(m) return 1.5;
+  m = t.match(/PR\s*(?:满|刚满|快满)\s*(\d+)/i); if(m) return +m[1];
+  m = t.match(/PR\s*第\s*(\d+)\s*年/i); if(m) return Math.max(0, +m[1]-1);
+  m = t.match(/(\d{2})\s*年\s*(?:拿|批)?\s*PR/i);
+  if(m){ const yy=+m[1]; const yr=yy>=50?1900+yy:2000+yy; return CURRENT_YEAR-yr; }
+  return null;
+}
+function extChildren(t){
+  let m = t.match(/(\d+|一|两|二|三)\s*(?:个|名)?\s*(?:小孩|孩子|娃|子女)/);
+  if(m){ const map={'一':1,'两':2,'二':2,'三':3}; return map[m[1]]||+m[1]; }
+  if(/有娃|带娃|K1|K2|幼儿园/.test(t)) return 1;
+  if(/无娃|无小孩|没小孩|未育/.test(t)) return 0;
+  return null;
+}
+function extProperty(t){
+  if(/有房|购房|买了房|组屋|HDB|公寓|condo|私宅|有不动产|名下有房/i.test(t)) return true;
+  if(/无房|没房|租房|租住|无不动产|名下无房/.test(t)) return false;
+  return null;
+}
+function extIndustry(t){
+  if(/建筑|土木工程|机械工程|civil engineer|architect|construction|施工/i.test(t)) return '工程/建筑';
+  if(/房产|房地产|地产|real estate/i.test(t)) return '房产/建筑';
+  if(/码农|软件|程序员|互联网|科技|developer|software|半导体|tech|\bIT\b|backend|frontend/i.test(t)) return 'IT/科技';
+  if(/金融|银行|保险|投资|基金|会计|财务|fintech|bank|finance/i.test(t)) return '金融';
+  if(/医疗|医生|护士|医院|药|doctor|nurse|hospital|medical/i.test(t)) return '医疗';
+  if(/教育|老师|教师|教授|研究|科研|teacher|professor|research/i.test(t)) return '教育/科研';
+  if(/咨询|经理|管理|销售|市场|运营|consultant|manager|marketing/i.test(t)) return '商业/管理';
+  if(/律师|法律|law|attorney|legal/i.test(t)) return '法律';
+  if(/创业|自雇|自营|开公司|freelance|entrepreneur|startup/i.test(t)) return '创业/自雇';
+  if(/贸易|进出口|物流|运输|logistics|trading/i.test(t)) return '贸易/物流';
+  if(/工程|engineer/i.test(t)) return '其他工程';
+  return null;
+}
+
+function extractFeatures(text){
+  return {
+    age: extAge(text),
+    gender: extGender(text),
+    marital: extMarital(text),
+    education: extEducation(text),
+    monthly_income: extIncome(text),
+    years_in_sg: extYearsInSg(text),
+    pr_duration_years: extPrYears(text),
+    children: extChildren(text),
+    has_property: extProperty(text),
+    industry: extIndustry(text),
+  };
+}
+
+// ---- 前端 RandomForest 推理 ----
+function vectorize(feat){
+  const M = MODEL;
+  const row = [];
+  for(const f of M.num_features){
+    const v = feat[f];
+    row.push(v != null ? +v : M.num_medians[f]);
+  }
+  for(const f of M.cat_features){
+    const rv = feat[f];
+    const rvStr = rv == null ? null : String(rv);
+    for(const v of M.cat_vocab[f]){
+      row.push(rvStr === v ? 1 : 0);
+    }
+  }
+  return row;
+}
+function treePredict(nodes, x){
+  let i = 0;
+  for(let step=0; step<1000; step++){
+    const n = nodes[i];
+    if(n.l) return n.p;
+    i = x[n.f] <= n.t ? n.L : n.R;
+  }
+  return 0.5;
+}
+function rfPredict(feat){
+  const x = vectorize(feat);
+  let sum = 0;
+  for(const tree of MODEL.trees) sum += treePredict(tree, x);
+  return sum / MODEL.trees.length;
+}
+
+// ---- 分析与建议 ----
+const FIELD_LABEL = {
+  age:'年龄', gender:'申请类型', marital:'婚姻', education:'学历',
+  monthly_income:'月收入(SGD)', years_in_sg:'在新年限', pr_duration_years:'PR年限',
+  children:'子女数', has_property:'房产', industry:'行业',
+};
+const CRITICAL = ['age','education','pr_duration_years','years_in_sg'];
+const OPTIONAL = ['gender','marital','monthly_income','children','has_property','industry'];
+
+function buildAnalysis(feat, prob){
+  const pros = [], cons = [];
+
+  if(feat.education === '博士') pros.push('博士学历（高加分）');
+  else if(feat.education === '硕士') pros.push('硕士学历');
+  else if(feat.education === '本科') pros.push('本科学历');
+  else if(feat.education === '高中' || feat.education === '大专') cons.push('学历偏低，建议补充技能/工作证明');
+
+  if(feat.pr_duration_years != null){
+    if(feat.pr_duration_years >= 4) pros.push(`持有 PR ${feat.pr_duration_years} 年（满足典型门槛）`);
+    else if(feat.pr_duration_years >= 2) cons.push(`PR ${feat.pr_duration_years} 年偏短，3-4 年后申请通常更稳`);
+    else cons.push(`PR 不足 2 年，时长偏短`);
+  }
+
+  if(feat.years_in_sg != null){
+    if(feat.years_in_sg >= 8) pros.push(`在新 ${feat.years_in_sg} 年（稳定性强）`);
+    else if(feat.years_in_sg >= 4) pros.push(`在新 ${feat.years_in_sg} 年`);
+    else cons.push(`在新时长 ${feat.years_in_sg} 年偏短`);
+  }
+
+  if(feat.monthly_income != null){
+    if(feat.monthly_income >= 12000) pros.push(`月收入 ${feat.monthly_income} SGD（高于常见中位数）`);
+    else if(feat.monthly_income >= 6000) pros.push(`月收入 ${feat.monthly_income} SGD`);
+    else cons.push(`月收入 ${feat.monthly_income} SGD 偏低`);
+  }
+
+  if(feat.age != null){
+    if(feat.age >= 28 && feat.age <= 42) pros.push(`年龄 ${feat.age}（黄金区间）`);
+    else if(feat.age > 50) cons.push(`年龄 ${feat.age} 偏高`);
+    else if(feat.age < 25) cons.push(`年龄 ${feat.age} 偏年轻`);
+  }
+
+  if(feat.has_property === true) pros.push('已购房产（稳定性信号）');
+  if(feat.marital === '已婚') pros.push('已婚（家庭稳定）');
+  if(feat.children != null && feat.children > 0) pros.push(`有 ${feat.children} 个孩子（家庭根基）`);
+
+  if(feat.industry === 'IT/科技' || feat.industry === '金融' || feat.industry === '医疗')
+    pros.push(`${feat.industry} 行业（紧缺/优势行业）`);
+
+  // 建议
+  const tips = [];
+  if(feat.pr_duration_years != null && feat.pr_duration_years < 3)
+    tips.push('如非紧迫，建议在 PR 满 3-4 年后再申请，历史通过率明显更高');
+  if(feat.has_property == null)
+    tips.push('补充房产信息（HDB/公寓/无房均可）有助于增加稳定性信号');
+  if(feat.monthly_income == null)
+    tips.push('补充收入信息（月薪/年薪）以提升预测准确度');
+  if(feat.industry == null)
+    tips.push('注明所在行业（特别是紧缺行业更利好）');
+  if(prob < 0.5)
+    tips.push('建议咨询专业移民顾问，结合最新政策与个人情况优化材料');
+  if(tips.length === 0)
+    tips.push('整体材料看起来不错，按当前条件正常提交即可');
+
+  return {pros, cons, tips};
+}
+
+function runPredict(){
+  const text = document.getElementById('predict-input').value.trim();
+  if(!text){ alert('请输入申请人信息'); return; }
+
+  const feat = extractFeatures(text);
+  const prob = rfPredict(feat);
+  const ana = buildAnalysis(feat, prob);
+  const missC = CRITICAL.filter(f => feat[f] == null);
+  const missO = OPTIONAL.filter(f => feat[f] == null);
+
+  renderPredict(feat, prob, ana, missC, missO);
+}
+
+function renderPredict(feat, prob, ana, missC, missO){
+  const pct = (prob*100).toFixed(1);
+  const tier = prob >= 0.7 ? ['tier-high','成功率较高'] :
+               prob >= 0.45 ? ['tier-mid','成功率中等'] :
+                              ['tier-low','成功率偏低'];
+
+  const fmtVal = (k,v) => {
+    if(v == null) return '<span class="miss">未提取到</span>';
+    if(k === 'has_property') return v ? '有' : '无';
+    if(k === 'monthly_income') return Number(v).toLocaleString() + ' SGD';
+    return v;
+  };
+
+  const featRows = Object.keys(FIELD_LABEL).map(k=>
+    `<tr><td style="color:#888;width:120px">${FIELD_LABEL[k]}</td>
+         <td ${feat[k]==null?'class="miss"':''}>${fmtVal(k,feat[k])}</td></tr>`
+  ).join('');
+
+  const prosHtml = ana.pros.length
+    ? ana.pros.map(s=>`<li><span class="icon">✓</span>${s}</li>`).join('')
+    : '<li style="color:#666">未识别到明显利好因素</li>';
+  const consHtml = ana.cons.length
+    ? ana.cons.map(s=>`<li><span class="icon">!</span>${s}</li>`).join('')
+    : '<li style="color:#666">未识别到明显风险因素</li>';
+  const tipsHtml = ana.tips.map(s=>`<li>${s}</li>`).join('');
+
+  let missingBlock = '';
+  if(missC.length || missO.length){
+    const cTags = missC.map(f=>`<span class="tag t-杯具" style="margin-right:6px">${FIELD_LABEL[f]}</span>`).join('');
+    const oTags = missO.map(f=>`<span class="tag t-未知" style="margin-right:6px">${FIELD_LABEL[f]}</span>`).join('');
+    missingBlock = `
+      <div class="analysis-card" style="grid-column:1/-1">
+        <h3>缺少信息（补充后预测更准）</h3>
+        ${missC.length?`<div style="margin-bottom:8px;font-size:0.82rem;color:#aaa">关键字段缺失：${cTags}</div>`:''}
+        ${missO.length?`<div style="font-size:0.82rem;color:#888">可选字段缺失：${oTags}</div>`:''}
+      </div>`;
+  }
+
+  document.getElementById('predict-result').innerHTML = `
+    <div class="proba-card">
+      <div class="proba-num">${pct}%</div>
+      <div class="proba-label">预估成功概率</div>
+      <div class="proba-bar-wrap"><div class="proba-bar" style="width:${pct}%"></div></div>
+      <div class="proba-tier ${tier[0]}">${tier[1]}</div>
+    </div>
+
+    <div class="analysis-grid">
+      <div class="analysis-card">
+        <h3 style="color:#4CAF50">利好因素</h3>
+        <ul class="analysis-list">${prosHtml}</ul>
+      </div>
+      <div class="analysis-card">
+        <h3 style="color:#FF9800">风险因素</h3>
+        <ul class="analysis-list">${consHtml}</ul>
+      </div>
+      <div class="analysis-card">
+        <h3>提取到的特征</h3>
+        <table class="feat-table">${featRows}</table>
+      </div>
+      <div class="analysis-card">
+        <h3>建议</h3>
+        <ol class="suggestion-list">${tipsHtml}</ol>
+      </div>
+      ${missingBlock}
+    </div>
+  `;
+}
 </script>
 </body>
 </html>
@@ -1058,7 +1456,15 @@ render();
 
 def generate_html(records):
     data_json = json.dumps(records, ensure_ascii=False, separators=(',', ':'))
-    return HTML_TEMPLATE.replace('__DATA__', data_json)
+    # 嵌入预测模型（如果已训练，否则前端走"模型未加载"分支）
+    model_path = Path(__file__).parent / 'model.json'
+    if model_path.exists():
+        model_json = model_path.read_text(encoding='utf-8')
+    else:
+        model_json = 'null'
+    return (HTML_TEMPLATE
+            .replace('__DATA__', data_json)
+            .replace('__MODEL__', model_json))
 
 
 # ============================================================
