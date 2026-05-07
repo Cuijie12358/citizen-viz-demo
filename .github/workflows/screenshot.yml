@@ -1,0 +1,50 @@
+name: Auto Update README Screenshots
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'context/citizen_viz.html'
+      - 'context/scraper.py'
+      - 'context/train_model.py'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  screenshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: npx playwright install chromium --with-deps
+
+      - name: Wait for Vercel deployment
+        run: |
+          echo "Waiting for Vercel deployment to complete..."
+          sleep 90
+
+      - name: Take screenshots
+        run: node .github/scripts/take_screenshots.js
+        env:
+          BASE_URL: https://citizen-predict.vercel.app
+
+      - name: Commit and push screenshots
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet docs/images/; then
+            echo "No screenshot changes, skipping commit"
+          else
+            git add docs/images/
+            git commit -m "chore: auto-update README screenshots [skip ci]"
+            git push
+          fi
