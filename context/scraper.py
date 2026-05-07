@@ -97,6 +97,12 @@ def p_age(text):
         a = int(m.group(1))
         if 20 <= a <= 65:
             return a
+    # 1a) "40+" "50+" 表示"40多岁/50多岁"
+    m = re.search(r'(\d{2})\+', text)
+    if m:
+        a = int(m.group(1))
+        if 20 <= a <= 65:
+            return a
     # 1b) "38岁女" / "30岁男" / "38岁，女" — 数字在前
     m = re.search(r'(\d{2})\s*岁(?:\s*[，,])?\s*[男女]', text)
     if m:
@@ -289,6 +295,7 @@ def p_income_monthly(text):
         (r'annual(?:\s*(?:income|salary))?\s*\$?(\d+(?:\.\d+)?)\s*[kK]', 1000),
         (r'年入\s*(\d+(?:\.\d+)?)\s*[万w]',                          10000),
         (r'年入\s*(\d+(?:\.\d+)?)\s*[kK]',                          1000),
+        (r'base\s*(\d+(?:\.\d+)?)\s*[万wW]\+?',                     10000),  # "base 36w+"
     ]
     for pat, mult in annual_pats:
         m = re.search(pat, text, re.I)
@@ -442,8 +449,9 @@ def p_children(text):
         if 0 <= n <= 6:
             return n
     # 中文数量
-    for cn, n in [('一', 1), ('两', 2), ('二', 2), ('三', 3), ('四', 4)]:
-        if re.search(rf'{cn}\s*(?:个)?\s*(?:孩子|小孩|娃|儿子|女儿)', text):
+    for cn, n in [('一', 1), ('两', 2), ('俩', 2), ('二', 2), ('三', 3), ('四', 4)]:
+        # 允许在中文数字与"孩子/娃/..."之间出现描述词（如"俩低龄男娃" / "两个可爱小孩"）
+        if re.search(rf'{cn}\s*(?:个)?\s*(?:低龄|高龄|小|大|可爱|男|女|学龄|未成年){{0,3}}\s*(?:孩子|小孩|娃|儿子|女儿)', text):
             return n
     # 单子/单女信号
     if re.search(r'带(?:女儿|儿子|娃|宝宝|baby|新生儿)|一个(?:女儿|儿子|娃)|单女|独子|独女|单亲|男娃|女娃', text, re.I):
@@ -1065,8 +1073,8 @@ def main():
     session = requests.Session()
     all_records = []
 
-    for page in range(1, TOTAL_PAGES + 1):
-        print(f"  第 {page:2d}/{TOTAL_PAGES} 页...", end=' ', flush=True)
+    for page in range(0, TOTAL_PAGES):
+        print(f"  第 {page:2d}/{TOTAL_PAGES - 1} 页...", end=' ', flush=True)
         html = fetch_page(page, session)
         if html:
             recs = parse_page(html)
