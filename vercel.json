@@ -1,0 +1,14 @@
+{
+  "name": "citizen-predict",
+  "version": 2,
+  "public": true,
+  "env": {},
+  "buildCommand": "echo 'Static HTML project'",
+  "outputDirectory": "context",
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/citizen_viz.html"
+    }
+  ]
+}
