@@ -240,28 +240,7 @@ td:last-child{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space
     </div>
     </div><!-- /view-dashboard -->
 
-    <div id="view-predict" class="view">
-      <div class="predict-card">
-        <h2>申请成功率预测</h2>
-        <p class="hint">
-          粘贴或输入申请人的简要信息（自由文本，与历史样本风格相似即可）。系统会自动提取年龄、学历、收入、PR 年限等关键特征，并基于历史 273 条已结案样本训练的随机森林模型给出成功率预测与建议。
-          <br><span style="color:#666">本工具仅供参考，预测结果不代表官方决定。</span>
-        </p>
-        <textarea id="predict-input" class="predict-input" placeholder="例如：男，35岁，硕士，在新加坡5年，PR2年，金融行业，月薪15k SGD，已婚有一个小孩，有房产，准备申请..."></textarea>
-        <div class="predict-actions">
-          <button class="predict-btn" id="btn-predict" onclick="runPredict()">开始预测</button>
-          <button class="example-btn" onclick="fillExample(0)">示例 1</button>
-          <button class="example-btn" onclick="fillExample(1)">示例 2</button>
-          <button class="example-btn" onclick="fillExample(2)">示例 3</button>
-          <span class="model-meta" id="model-meta"></span>
-        </div>
-      </div>
-      <div id="predict-result">
-        <div class="predict-card predict-empty">
-          输入申请信息后点击"开始预测"，结果将在此显示。
-        </div>
-      </div>
-    </div><!-- /view-predict -->
+    <div id="view-predict" class="view"></div><!-- /view-predict -->
   </main>
 </div>
 
@@ -900,14 +879,6 @@ function renderPredict(feat, prob, ana, missC, missO){
     </div>
   `;
 }
-(function movePredictContent(){
-  const modal=document.getElementById('predict-modal');
-  const closeBtn=document.getElementById('modal-close');
-  const view=document.getElementById('view-predict');
-  Array.from(view.childNodes).forEach(node=>modal.appendChild(node));
-  modal.insertBefore(closeBtn,modal.firstChild);
-  view.style.display='none';
-})();
 function openPredictModal(){document.getElementById('predict-overlay').classList.add('open');document.body.style.overflow='hidden'}
 function closePredictModal(){document.getElementById('predict-overlay').classList.remove('open');document.body.style.overflow=''}
 function handleOverlayClick(e){if(e.target===document.getElementById('predict-overlay'))closePredictModal()}
@@ -915,8 +886,23 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePredictModal()}
 </script>
 <button id="predict-fab" onclick="openPredictModal()" title="申请成功率预测">📊</button>
 <div id="predict-overlay" onclick="handleOverlayClick(event)">
-  <div id="predict-modal">
+  <div id="predict-modal" onclick="event.stopPropagation()">
     <button id="modal-close" onclick="closePredictModal()">✕</button>
+    <div class="predict-card">
+      <h2>申请成功率预测</h2>
+      <p class="hint">粘贴或输入申请人的简要信息（自由文本，与历史样本风格相似即可）。系统会自动提取年龄、学历、收入、PR 年限等关键特征，并基于历史 273 条已结案样本训练的随机森林模型给出成功率预测与建议。<span style="color:#666">本工具仅供参考，预测结果不代表官方决定。</span></p>
+      <textarea id="predict-input" class="predict-input" rows="5" placeholder="例如：男，35岁，硕士，在新加坡5年，PR2年，金融行业，月薪15k SGD，已婚有一个小孩，有房产，准备申请..."></textarea>
+      <div class="predict-actions">
+        <button class="predict-btn" id="btn-predict" onclick="runPredict()">开始预测</button>
+        <button class="example-btn" onclick="fillExample(0)">示例 1</button>
+        <button class="example-btn" onclick="fillExample(1)">示例 2</button>
+        <button class="example-btn" onclick="fillExample(2)">示例 3</button>
+        <span class="model-meta" id="model-meta"></span>
+      </div>
+    </div>
+    <div id="predict-result">
+      <div class="predict-card predict-empty">输入申请信息后点击"开始预测"，结果将在此显示。</div>
+    </div>
   </div>
 </div>
 </body>
