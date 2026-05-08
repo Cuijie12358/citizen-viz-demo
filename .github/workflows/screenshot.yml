@@ -28,16 +28,21 @@ jobs:
         run: |
           npm install playwright
           npx playwright install chromium --with-deps
+        timeout-minutes: 10
 
       - name: Wait for Vercel deployment
         run: |
           echo "Waiting for Vercel deployment to complete..."
-          sleep 90
+          sleep 120
 
       - name: Take screenshots
-        run: node .github/scripts/take_screenshots.js
+        run: |
+          echo "Starting screenshot generation..."
+          node .github/scripts/take_screenshots.js
+          echo "Screenshot generation completed"
         env:
           BASE_URL: https://citizen-predict.vercel.app
+        timeout-minutes: 5
 
       - name: Commit and push screenshots
         run: |
