@@ -16,6 +16,7 @@ Thumbs.db
 # Project
 context/*.html
 !context/citizen_viz.html
+context/cache/
 tasks/
 CLAUDE.md
 .claude/

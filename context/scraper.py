@@ -21,6 +21,46 @@ OUTPUT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "citizen_
 CURRENT_YEAR = datetime.now().year  # 动态年份，避免代码老化
 
 # ============================================================
+# 缓存配置
+# ============================================================
+
+CACHE_DIR = Path(__file__).parent / 'cache'
+EXTRACTOR_VERSION = "v3"  # 修改特征提取逻辑时手动更新这个版本号
+CACHE_MAX_DAYS = 7
+
+
+def load_cache():
+    """读取缓存，返回 (records, is_valid)"""
+    meta_path = CACHE_DIR / 'meta.json'
+    data_path = CACHE_DIR / 'records.json'
+    if not meta_path.exists() or not data_path.exists():
+        return None, False
+    meta = json.load(open(meta_path))
+    if meta.get('version') != EXTRACTOR_VERSION:
+        print(f"  缓存特征提取版本变更 ({meta.get('version')} -> {EXTRACTOR_VERSION})，需重新爬取")
+        return None, False
+    age_days = (datetime.now() - datetime.fromisoformat(meta['fetched_at'])).days
+    if age_days > CACHE_MAX_DAYS:
+        print(f"  缓存已过期（{age_days} 天），需重新爬取")
+        return None, False
+    records = json.load(open(data_path, encoding='utf-8'))
+    print(f"  使用缓存数据（{len(records)} 条，{age_days} 天前爬取）")
+    return records, True
+
+
+def save_cache(records):
+    """保存爬取结果到缓存"""
+    CACHE_DIR.mkdir(exist_ok=True)
+    json.dump(records, open(CACHE_DIR / 'records.json', 'w', encoding='utf-8'), ensure_ascii=False, indent=2)
+    json.dump({
+        'version': EXTRACTOR_VERSION,
+        'fetched_at': datetime.now().isoformat(),
+        'count': len(records)
+    }, open(CACHE_DIR / 'meta.json', 'w'), indent=2)
+    print(f"  缓存已保存（{len(records)} 条）")
+
+
+# ============================================================
 # 数据抓取
 # ============================================================
 
@@ -701,6 +741,41 @@ td:last-child{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space
   #predict-modal{width:100%;max-height:85vh;border-radius:18px 18px 0 0;padding-bottom:32px;animation:sheet-in .25s ease}
 }
 @keyframes sheet-in{from{transform:translateY(100%)}to{transform:translateY(0)}}
+
+/* === 提交数据按钮和弹窗 === */
+#submit-fab{position:fixed;bottom:28px;right:90px;width:52px;height:52px;border-radius:50%;background:#2196F3;color:#fff;border:none;font-size:1.5rem;cursor:pointer;box-shadow:0 4px 16px rgba(33,150,243,.45);z-index:900;display:flex;align-items:center;justify-content:center;transition:transform .15s,background .15s}
+#submit-fab:hover{background:#1976D2;transform:scale(1.08)}
+#submit-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:1000;align-items:center;justify-content:center}
+#submit-overlay.open{display:flex}
+#submit-modal{background:#0d0d1a;border:1px solid #2a2a4e;border-radius:14px;width:min(560px,94vw);max-height:90vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 40px rgba(0,0,0,.7);animation:modal-in .22s ease}
+#submit-close{position:absolute;top:14px;right:18px;background:transparent;border:none;color:#666;font-size:1.4rem;cursor:pointer;line-height:1}
+#submit-close:hover{color:#fff}
+.sf-title{font-size:1.05rem;color:#fff;font-weight:700;margin-bottom:4px}
+.sf-hint{color:#666;font-size:0.78rem;margin-bottom:18px}
+.sf-row{margin-bottom:14px}
+.sf-row label{display:block;color:#888;font-size:0.78rem;margin-bottom:5px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.sf-row label span{color:#EF3340;margin-left:2px}
+.sf-input,.sf-select,.sf-textarea{width:100%;background:#0d0d1a;border:1px solid #2a2a4e;border-radius:7px;padding:8px 12px;color:#e0e0e0;font-family:inherit;font-size:0.88rem;outline:none;transition:border-color .15s}
+.sf-input:focus,.sf-select:focus,.sf-textarea:focus{border-color:#2196F3}
+.sf-select{appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23666' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px}
+.sf-textarea{min-height:70px;resize:vertical;line-height:1.5}
+.sf-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.sf-actions{display:flex;gap:10px;margin-top:18px;align-items:center;flex-wrap:wrap}
+.sf-submit-btn{background:#2196F3;border:none;color:#fff;padding:9px 24px;border-radius:7px;cursor:pointer;font-size:0.9rem;font-weight:600;transition:background .15s}
+.sf-submit-btn:hover{background:#1976D2}
+.sf-export-btn{background:#1e1e3a;border:1px solid #2a2a4e;color:#aaa;padding:7px 16px;border-radius:7px;cursor:pointer;font-size:0.82rem}
+.sf-export-btn:hover{background:#2a2a4e;color:#fff}
+.sf-msg{font-size:0.82rem;padding:8px 12px;border-radius:6px;display:none}
+.sf-msg.success{background:rgba(76,175,80,.15);color:#4CAF50;border:1px solid rgba(76,175,80,.3);display:block}
+.sf-msg.error{background:rgba(244,67,54,.15);color:#F44336;border:1px solid rgba(244,67,54,.3);display:block}
+.user-badge{display:inline-block;padding:1px 7px;border-radius:8px;font-size:0.68rem;background:rgba(33,150,243,.2);color:#2196F3;border:1px solid rgba(33,150,243,.35);margin-left:5px;vertical-align:middle}
+tr.user-row td{background:rgba(33,150,243,.05)}
+@media(max-width:900px){
+  #submit-fab{bottom:28px;right:90px}
+  #submit-overlay{align-items:flex-end}
+  #submit-modal{width:100%;max-height:88vh;border-radius:18px 18px 0 0;padding-bottom:32px;animation:sheet-in .25s ease}
+  .sf-grid{grid-template-columns:1fr}
+}
 </style>
 </head>
 <body>
@@ -1447,8 +1522,196 @@ function renderPredict(feat, prob, ana, missC, missO){
 function openPredictModal(){document.getElementById('predict-overlay').classList.add('open');document.body.style.overflow='hidden'}
 function closePredictModal(){document.getElementById('predict-overlay').classList.remove('open');document.body.style.overflow=''}
 function handleOverlayClick(e){if(e.target===document.getElementById('predict-overlay'))closePredictModal()}
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closePredictModal()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){closePredictModal();closeSubmitModal();}});
+
+// ============================================================
+// 提交数据功能
+// ============================================================
+
+function openSubmitModal(){
+  document.getElementById('sf-msg').className='sf-msg';
+  document.getElementById('sf-msg').textContent='';
+  document.getElementById('submit-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closeSubmitModal(){
+  document.getElementById('submit-overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+function handleSubmitOverlayClick(e){
+  if(e.target===document.getElementById('submit-overlay')) closeSubmitModal();
+}
+
+function validateSubmission(data){
+  if(!data.result || !data.apply_year) return '请填写申请结果和申请年份';
+  if(data.age && (data.age < 18 || data.age > 70)) return '年龄需在 18-70 之间';
+  if(data.income && (data.income < 1000 || data.income > 100000)) return '月收入需在 1,000-100,000 之间';
+  if(data.apply_year < 2015 || data.apply_year > 2026) return '申请年份不合法';
+  const lastSubmit = localStorage.getItem('last_submit_time');
+  if(lastSubmit && Date.now() - parseInt(lastSubmit) < 60000) return '提交过于频繁，请稍后再试';
+  if(data.note && data.note.length > 200) return '备注不超过 200 字';
+  return null;
+}
+
+function submitMyData(){
+  const data = {
+    result:      document.getElementById('sf-result').value,
+    apply_year:  parseInt(document.getElementById('sf-year').value) || null,
+    age:         parseInt(document.getElementById('sf-age').value) || null,
+    income:      parseInt(document.getElementById('sf-income').value) || null,
+    education:   document.getElementById('sf-education').value || null,
+    marital:     document.getElementById('sf-marital').value || null,
+    pr:          parseFloat(document.getElementById('sf-pr').value) || null,
+    years:       parseFloat(document.getElementById('sf-years').value) || null,
+    note:        document.getElementById('sf-note').value.trim() || null,
+  };
+
+  const err = validateSubmission(data);
+  const msgEl = document.getElementById('sf-msg');
+  if(err){
+    msgEl.textContent = err;
+    msgEl.className = 'sf-msg error';
+    return;
+  }
+
+  const noteText = [
+    data.note || '',
+    data.age ? `${data.age}岁` : '',
+    data.education || '',
+    data.marital || '',
+    data.income ? `月薪${data.income}SGD` : '',
+    data.pr != null ? `PR${data.pr}年` : '',
+    data.years != null ? `在新${data.years}年` : '',
+  ].filter(Boolean).join('，');
+
+  const record = {
+    username: '我的数据',
+    result: data.result,
+    result_norm: data.result,
+    apply_date: data.apply_year ? String(data.apply_year) + '-01-01' : '',
+    end_date: '',
+    conditions: noteText,
+    age: data.age,
+    gender: null,
+    marital: data.marital,
+    education: data.education,
+    monthly_income: data.income,
+    years_in_sg: data.years,
+    pr_duration_years: data.pr,
+    children: null,
+    has_property: null,
+    industry: null,
+    processing_months: null,
+    is_user_submission: true,
+    submitted_at: new Date().toISOString(),
+  };
+
+  const existing = JSON.parse(localStorage.getItem('user_submissions') || '[]');
+  existing.push(record);
+  localStorage.setItem('user_submissions', JSON.stringify(existing));
+  localStorage.setItem('last_submit_time', String(Date.now()));
+
+  msgEl.textContent = '提交成功，感谢您的贡献！数据已保存到本地浏览器。';
+  msgEl.className = 'sf-msg success';
+
+  // 重置表单
+  ['sf-result','sf-year','sf-age','sf-income','sf-education','sf-marital','sf-pr','sf-years','sf-note'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.value = '';
+  });
+
+  // 刷新图表和表格（含新提交数据）
+  applyFilters();
+}
+
+function exportMyData(){
+  const subs = JSON.parse(localStorage.getItem('user_submissions') || '[]');
+  if(subs.length === 0){
+    alert('暂无提交记录');
+    return;
+  }
+  const blob = new Blob([JSON.stringify(subs, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'my_citizen_submissions.json';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// 加载用户提交的数据并合并到图表
+function loadUserSubmissions(){
+  return JSON.parse(localStorage.getItem('user_submissions') || '[]');
+}
+
+// 重写 applyFilters 以合并用户数据
+const _origApplyFilters = applyFilters;
+(function(){
+  // 覆盖 applyFilters，在过滤后追加用户提交的记录
+  window.applyFilters = function(){
+    const sel = getSelected();
+    const q   = document.getElementById('search').value.toLowerCase();
+    filtered = RAW.filter(r => {
+      if(!sel.includes(r.result_norm)) return false;
+      if(q && !r.username.toLowerCase().includes(q) && !r.conditions.toLowerCase().includes(q)) return false;
+      return true;
+    });
+    // 追加用户提交（也应用结果筛选）
+    const userSubs = loadUserSubmissions().filter(r => sel.includes(r.result_norm));
+    filtered = filtered.concat(userSubs);
+    curPage = 0;
+    render();
+  };
+})();
+
+// 覆盖 renderTable 以高亮用户提交行
+const _origRenderTable = renderTable;
+window.renderTable = function(){
+  const total = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(total/PAGE_SIZE));
+  if(curPage >= totalPages) curPage = totalPages-1;
+
+  const slice = filtered.slice(curPage*PAGE_SIZE, (curPage+1)*PAGE_SIZE);
+
+  document.getElementById('tbl-count').textContent = `(${total} 条)`;
+  document.getElementById('page-info').textContent  = `第 ${curPage+1} / ${totalPages} 页`;
+  document.getElementById('btn-prev').disabled = curPage===0;
+  document.getElementById('btn-next').disabled = curPage>=totalPages-1;
+
+  const fmt = v => v!==null&&v!==undefined ? v : '-';
+  const fmtIncome = v => v ? 'S$'+(Math.round(v/100)/10)+'k' : '-';
+  const summary = s => s.length>55 ? s.slice(0,55)+'...' : s;
+
+  document.getElementById('tbody').innerHTML = slice.length ? slice.map(r => {
+    const userMark = r.is_user_submission ? '<span class="user-badge">我的</span>' : '';
+    const rowClass = r.is_user_submission ? ' class="user-row"' : '';
+    return `<tr${rowClass}>
+      <td>${(r.username||'-')}${userMark}</td>
+      <td><span class="tag t-${r.result_norm}">${r.result_norm}</span></td>
+      <td>${fmtIncome(r.monthly_income)}</td>
+      <td>${fmt(r.education)}</td>
+      <td>${fmt(r.age)}</td>
+      <td>${fmt(r.years_in_sg)}</td>
+      <td>${r.pr_duration_years!==null&&r.pr_duration_years!==undefined ? r.pr_duration_years+'年' : '-'}</td>
+      <td>${fmt(r.gender)}</td>
+      <td>${fmt(r.industry)}</td>
+      <td>${r.apply_date||'-'}</td>
+      <td title="${r.conditions.replace(/"/g,'&quot;')}">${summary(r.conditions)}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="11" class="no-data">无匹配数据</td></tr>';
+};
+
+// 初始化时也合并用户提交数据
+(function(){
+  const userSubs = loadUserSubmissions();
+  if(userSubs.length > 0){
+    const sel = [...document.querySelectorAll('.rf:checked')].map(e => e.value);
+    filtered = filtered.concat(userSubs.filter(r => sel.includes(r.result_norm)));
+    render();
+  }
+})();
 </script>
+<button id="submit-fab" onclick="openSubmitModal()" title="提交我的申请数据">📝</button>
 <button id="predict-fab" onclick="openPredictModal()" title="申请成功率预测">📊</button>
 <div id="predict-overlay" onclick="handleOverlayClick(event)">
   <div id="predict-modal" onclick="event.stopPropagation()">
@@ -1467,6 +1730,79 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closePredictModal()}
     </div>
     <div id="predict-result">
       <div class="predict-card predict-empty">输入申请信息后点击"开始预测"，结果将在此显示。</div>
+    </div>
+  </div>
+</div>
+<div id="submit-overlay" onclick="handleSubmitOverlayClick(event)">
+  <div id="submit-modal" onclick="event.stopPropagation()">
+    <button id="submit-close" onclick="closeSubmitModal()">&#x2715;</button>
+    <div class="sf-title">提交我的申请数据</div>
+    <div class="sf-hint">您的数据将仅存储在本地浏览器中（localStorage），不会上传到任何服务器。感谢您的贡献！</div>
+
+    <div id="sf-msg" class="sf-msg"></div>
+
+    <div class="sf-row">
+      <label>申请结果 <span>*</span></label>
+      <select id="sf-result" class="sf-select">
+        <option value="">请选择</option>
+        <option value="通过">通过</option>
+        <option value="杯具">拒绝</option>
+        <option value="等待">等待中</option>
+      </select>
+    </div>
+
+    <div class="sf-row">
+      <label>申请年份 <span>*</span></label>
+      <input id="sf-year" type="number" class="sf-input" placeholder="例如 2022" min="2015" max="2026">
+    </div>
+
+    <div class="sf-grid">
+      <div class="sf-row">
+        <label>年龄（岁）</label>
+        <input id="sf-age" type="number" class="sf-input" placeholder="18-70" min="18" max="70">
+      </div>
+      <div class="sf-row">
+        <label>月收入 SGD</label>
+        <input id="sf-income" type="number" class="sf-input" placeholder="1000-100000" min="1000" max="100000">
+      </div>
+      <div class="sf-row">
+        <label>学历</label>
+        <select id="sf-education" class="sf-select">
+          <option value="">请选择</option>
+          <option value="高中">高中</option>
+          <option value="大专">大专</option>
+          <option value="本科">本科</option>
+          <option value="硕士">硕士</option>
+          <option value="博士">博士</option>
+        </select>
+      </div>
+      <div class="sf-row">
+        <label>婚姻状态</label>
+        <select id="sf-marital" class="sf-select">
+          <option value="">请选择</option>
+          <option value="单身">单身</option>
+          <option value="已婚">已婚</option>
+          <option value="离异">离异</option>
+        </select>
+      </div>
+      <div class="sf-row">
+        <label>PR 年限（年）</label>
+        <input id="sf-pr" type="number" class="sf-input" placeholder="0-20" min="0" max="20" step="0.5">
+      </div>
+      <div class="sf-row">
+        <label>在新年限（年）</label>
+        <input id="sf-years" type="number" class="sf-input" placeholder="0-30" min="0" max="30" step="0.5">
+      </div>
+    </div>
+
+    <div class="sf-row">
+      <label>备注（选填，最多 200 字）</label>
+      <textarea id="sf-note" class="sf-textarea" placeholder="补充其他相关信息，如行业、职业、家庭情况等…" maxlength="200"></textarea>
+    </div>
+
+    <div class="sf-actions">
+      <button class="sf-submit-btn" onclick="submitMyData()">提交数据</button>
+      <button class="sf-export-btn" onclick="exportMyData()">导出我的数据</button>
     </div>
   </div>
 </div>
@@ -1497,31 +1833,43 @@ def main():
     print("  新加坡公民申请数据可视化爬虫")
     print("=" * 55)
 
-    session = requests.Session()
-    all_records = []
+    force_refresh = '--force-refresh' in sys.argv
+    unique_records = None
 
-    for page in range(0, TOTAL_PAGES):
-        print(f"  第 {page:2d}/{TOTAL_PAGES - 1} 页...", end=' ', flush=True)
-        html = fetch_page(page, session)
-        if html:
-            recs = parse_page(html)
-            all_records.extend(recs)
-            print(f"{len(recs)} 条")
-        else:
-            print("跳过")
-        time.sleep(0.8)
+    if not force_refresh:
+        cached, valid = load_cache()
+        if valid:
+            unique_records = cached
 
-    print(f"\n  共获取 {len(all_records)} 条记录，去重中...")
-    # 精确去重：基于 (username, apply_date, result 前 30 字) 三元组
-    # 这样可以保留同一用户的不同次申请，仅过滤真正重复的状态更新
-    seen_keys = set()
-    unique_records = []
-    for r in all_records:
-        result_prefix = r['result'][:30] if r.get('result') else ''
-        key = (r.get('username', ''), r.get('apply_date', ''), result_prefix)
-        if key not in seen_keys:
-            seen_keys.add(key)
-            unique_records.append(r)
+    if unique_records is None:
+        # 正常爬取流程
+        session = requests.Session()
+        all_records = []
+
+        for page in range(0, TOTAL_PAGES):
+            print(f"  第 {page:2d}/{TOTAL_PAGES - 1} 页...", end=' ', flush=True)
+            html = fetch_page(page, session)
+            if html:
+                recs = parse_page(html)
+                all_records.extend(recs)
+                print(f"{len(recs)} 条")
+            else:
+                print("跳过")
+            time.sleep(0.8)
+
+        print(f"\n  共获取 {len(all_records)} 条记录，去重中...")
+        # 精确去重：基于 (username, apply_date, result 前 30 字) 三元组
+        # 这样可以保留同一用户的不同次申请，仅过滤真正重复的状态更新
+        seen_keys = set()
+        unique_records = []
+        for r in all_records:
+            result_prefix = r['result'][:30] if r.get('result') else ''
+            key = (r.get('username', ''), r.get('apply_date', ''), result_prefix)
+            if key not in seen_keys:
+                seen_keys.add(key)
+                unique_records.append(r)
+
+        save_cache(unique_records)
 
     print(f"  去重后 {len(unique_records)} 条记录，开始解析字段...")
     enriched = [enrich(r) for r in unique_records]
