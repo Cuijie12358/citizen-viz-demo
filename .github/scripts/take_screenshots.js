@@ -25,15 +25,22 @@ async function takeScreenshots() {
       timeout: 60000
     });
 
-    // 等待主要内容加载
-    await page.waitForTimeout(3000);
+    // 等待主要内容加载和数据渲染
+    await page.waitForTimeout(5000);
+
+    // 等待 canvas 元素出现（Chart.js 使用 canvas 渲染图表）
+    try {
+      await page.waitForSelector('canvas', { timeout: 15000 });
+    } catch (e) {
+      console.warn('⚠️  Canvas elements not found, continuing anyway...');
+    }
 
     // 截图 1: 数据仪表盘 (数据可视化)
     console.log('📷 Capturing visualization dashboard...');
     try {
       // 确保在 dashboard tab
       await page.click('button[data-view="dashboard"]');
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
 
       // 截图图表部分（不包含表格）
       const chartElement = await page.$('.charts-grid');
@@ -52,10 +59,11 @@ async function takeScreenshots() {
     console.log('📷 Capturing predictor...');
     try {
       await page.click('button[data-view="predict"]');
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
 
       // 等待预测表单加载
-      await page.waitForSelector('.prediction-form, textarea', { timeout: 10000 });
+      await page.waitForSelector('.prediction-form, textarea', { timeout: 15000 });
+      await page.waitForTimeout(2000);
       await page.screenshot({ path: path.join(imagesDir, 'predictor.png') });
       console.log('✅ predictor.png saved');
     } catch (e) {
@@ -66,7 +74,7 @@ async function takeScreenshots() {
     console.log('📷 Capturing data table...');
     try {
       await page.click('button[data-view="dashboard"]');
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(3000);
 
       // 滚动到表格部分
       await page.evaluate(() => {
@@ -75,7 +83,7 @@ async function takeScreenshots() {
           tableSection.scrollIntoView({ behavior: 'auto' });
         }
       });
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(3000);
 
       // 截图表格部分
       const tableElement = await page.$('.table-section');
