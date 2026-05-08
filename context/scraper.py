@@ -687,6 +687,20 @@ td:last-child{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space
 .predict-empty{text-align:center;color:#555;padding:50px 0;font-size:0.88rem}
 
 @media(max-width:900px){.analysis-grid{grid-template-columns:1fr}}
+
+#predict-fab{position:fixed;bottom:28px;right:28px;width:52px;height:52px;border-radius:50%;background:#EF3340;color:#fff;border:none;font-size:1.5rem;cursor:pointer;box-shadow:0 4px 16px rgba(239,51,64,.45);z-index:900;display:flex;align-items:center;justify-content:center;transition:transform .15s,background .15s}
+#predict-fab:hover{background:#d12b36;transform:scale(1.08)}
+#predict-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:1000;align-items:center;justify-content:center}
+#predict-overlay.open{display:flex}
+#predict-modal{background:#0d0d1a;border:1px solid #2a2a4e;border-radius:14px;width:min(760px,94vw);max-height:88vh;overflow-y:auto;padding:24px;position:relative;box-shadow:0 8px 40px rgba(0,0,0,.7);animation:modal-in .22s ease}
+@keyframes modal-in{from{opacity:0;transform:translateY(18px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+#modal-close{position:absolute;top:14px;right:18px;background:transparent;border:none;color:#666;font-size:1.4rem;cursor:pointer;line-height:1}
+#modal-close:hover{color:#fff}
+@media(max-width:900px){
+  #predict-overlay{align-items:flex-end}
+  #predict-modal{width:100%;max-height:85vh;border-radius:18px 18px 0 0;padding-bottom:32px;animation:sheet-in .25s ease}
+}
+@keyframes sheet-in{from{transform:translateY(100%)}to{transform:translateY(0)}}
 </style>
 </head>
 <body>
@@ -1137,8 +1151,9 @@ render();
 const MODEL = __MODEL__;
 
 function switchView(name){
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.view===name));
-  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active', v.id==='view-'+name));
+  if(name==='predict'){openPredictModal();return}
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===name));
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id==='view-'+name));
 }
 
 const EXAMPLES = [
@@ -1448,7 +1463,25 @@ function renderPredict(feat, prob, ana, missC, missO){
     </div>
   `;
 }
+(function movePredictContent(){
+  const modal=document.getElementById('predict-modal');
+  const closeBtn=document.getElementById('modal-close');
+  const view=document.getElementById('view-predict');
+  Array.from(view.childNodes).forEach(node=>modal.appendChild(node));
+  modal.insertBefore(closeBtn,modal.firstChild);
+  view.style.display='none';
+})();
+function openPredictModal(){document.getElementById('predict-overlay').classList.add('open');document.body.style.overflow='hidden'}
+function closePredictModal(){document.getElementById('predict-overlay').classList.remove('open');document.body.style.overflow=''}
+function handleOverlayClick(e){if(e.target===document.getElementById('predict-overlay'))closePredictModal()}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePredictModal()});
 </script>
+<button id="predict-fab" onclick="openPredictModal()" title="申请成功率预测">📊</button>
+<div id="predict-overlay" onclick="handleOverlayClick(event)">
+  <div id="predict-modal">
+    <button id="modal-close" onclick="closePredictModal()">✕</button>
+  </div>
+</div>
 </body>
 </html>
 """
