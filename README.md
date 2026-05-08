@@ -234,6 +234,7 @@ citizen-viz-demo/
 - ✅ 新增"俩"的子女数识别
 - ✅ 预测工具改为浮动按钮弹窗（手机端底部抽屉 + 电脑端居中弹窗）
 - ✅ 修复预测弹窗空内容 bug（改为静态 HTML，移除 DOM 移动逻辑）
+- ✅ 修复脚本崩溃 bug（model-meta 同步赋值改为 DOMContentLoaded）
 
 ### 📅 2026-05-07
 - ✅ 添加成功率预测功能（RandomForest 模型）

@@ -1142,11 +1142,13 @@ const EXAMPLES = [
 ];
 function fillExample(i){ document.getElementById('predict-input').value = EXAMPLES[i]; }
 
-if (MODEL && MODEL.metrics) {
-  const m = MODEL.metrics;
-  document.getElementById('model-meta').textContent =
-    `模型: RandomForest · 训练 ${m.n_train} 条 · CV ${(m.cv_mean*100).toFixed(1)}% ± ${(m.cv_std*100).toFixed(1)}%`;
-}
+document.addEventListener('DOMContentLoaded', function() {
+  if (MODEL && MODEL.metrics) {
+    const m = MODEL.metrics;
+    const el = document.getElementById('model-meta');
+    if (el) el.textContent = `模型: RandomForest · 训练 ${m.n_train} 条 · CV ${(m.cv_mean*100).toFixed(1)}% ± ${(m.cv_std*100).toFixed(1)}%`;
+  }
+});
 
 // ---- 前端特征提取（与 scraper.py 的 regex 子集对齐） ----
 const CURRENT_YEAR = new Date().getFullYear();
