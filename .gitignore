@@ -21,6 +21,10 @@ tasks/
 CLAUDE.md
 .claude/
 
+# 小红书发布脚本
+scripts/xhs_cookies.json
+scripts/xhs_images/
+
 # Temp
 *.tmp
 *.log
