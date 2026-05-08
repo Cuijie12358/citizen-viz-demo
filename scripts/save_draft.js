@@ -45,18 +45,52 @@ async function saveDraft() {
   let browser;
   try {
     // 读取 Cookie
-    const cookies = JSON.parse(fs.readFileSync(COOKIES_FILE, 'utf-8'));
+    let cookies = JSON.parse(fs.readFileSync(COOKIES_FILE, 'utf-8'));
     console.log(`🔑 已读取 ${cookies.length} 个 Cookie`);
+
+    // 清理 Cookie：移除 Playwright 不支持的字段或无效值
+    cookies = cookies.map(cookie => {
+      const cleaned = {
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: cookie.path || '/',
+        expires: cookie.expires,
+        httpOnly: cookie.httpOnly || false,
+        secure: cookie.secure || false,
+        sameSite: cookie.sameSite && ['Strict', 'Lax', 'None'].includes(cookie.sameSite) ? cookie.sameSite : 'None'
+      };
+      return cleaned;
+    }).filter(c => c.name && c.value);
+
+    console.log(`✅ Cookie 清理完成，${cookies.length} 个有效 Cookie`);
 
     // 启动浏览器
     browser = await chromium.launch({ headless: false });
     const context = await browser.newContext();
-    await context.addCookies(cookies);
+    try {
+      await context.addCookies(cookies);
+    } catch (e) {
+      console.warn('⚠️  部分 Cookie 添加失败，继续...');
+      // 一个一个添加，跳过失败的
+      for (const cookie of cookies) {
+        try {
+          await context.addCookies([cookie]);
+        } catch (err) {
+          console.warn(`   跳过: ${cookie.name}`);
+        }
+      }
+    }
     const page = await context.newPage();
 
     console.log('\n🌐 打开小红书创作中心...');
-    await page.goto('https://creator.xiaohongshu.com/publish/publish');
-    await page.waitForLoadState('networkidle', { timeout: 10000 });
+    try {
+      await page.goto('https://creator.xiaohongshu.com/publish/publish', { waitUntil: 'domcontentloaded', timeout: 30000 });
+    } catch (e) {
+      console.warn('⚠️  页面加载较慢，继续...');
+    }
+    // 等待页面基本就绪
+    await page.waitForTimeout(3000);
 
     // 等待上传按钮出现
     console.log('⏳ 等待发布页面加载...');
