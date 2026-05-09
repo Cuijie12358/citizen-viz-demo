@@ -23,6 +23,8 @@ CLAUDE.md
 
 # 小红书发布脚本
 scripts/xhs_cookies.json
+scripts/xhs_session.json
+scripts/creator_xhs_cookies.json
 scripts/xhs_images/
 
 # Temp
