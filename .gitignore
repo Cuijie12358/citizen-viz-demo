@@ -21,10 +21,11 @@ tasks/
 CLAUDE.md
 .claude/
 
-# 小红书发布脚本
+# 小红书发布脚本（生成物或敏感数据，不入库）
 scripts/xhs_cookies.json
 scripts/xhs_session.json
 scripts/creator_xhs_cookies.json
+scripts/xhs_content.js
 scripts/xhs_images/
 
 # Temp
