@@ -27,6 +27,21 @@ scripts/xhs_session.json
 scripts/creator_xhs_cookies.json
 scripts/xhs_content.js
 scripts/xhs_images/
+scripts/xhs_debug_screenshot.png
+scripts/auto_publish_flow.js
+scripts/check_cookie.js
+scripts/debug_browser.js
+scripts/diagnose_xhs.js
+scripts/generate_cover.js
+scripts/inspect_page.js
+scripts/interactive_publish.js
+scripts/manual_publish.js
+scripts/save_session.js
+
+# Node
+node_modules/
+package.json
+package-lock.json
 
 # Temp
 *.tmp
