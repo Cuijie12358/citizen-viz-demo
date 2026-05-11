@@ -200,18 +200,72 @@ python3 context/scraper.py --force-refresh
 citizen-viz-demo/
 ├── README.md                      # 项目说明（本文件）
 ├── vercel.json                    # Vercel 部署配置
-├── CLAUDE.md                      # 项目工作规范
+├── CLAUDE.md                      # Claude Code 工作规范（驱动所有 agent 行为）
 ├── context/
-│   ├── scraper.py                 # 数据爬虫 + 特征提取 + 预测 UI
+│   ├── scraper.py                 # 数据爬虫 + 特征提取（1900 行）
 │   ├── train_model.py             # 模型训练脚本
 │   ├── predict_service.py         # Flask 预测服务（可选）
 │   ├── citizen_viz.html           # 主应用（包含爬虫生成的数据）
 │   ├── model.pkl                  # 训练好的 RandomForest 模型
 │   └── model.json                 # 树结构 JSON（前端推理用）
+├── scripts/
+│   ├── publish_xhs.js             # 小红书自动发布脚本（Playwright）
+│   └── process_images.js          # 图片处理脚本
+├── .github/
+│   └── workflows/screenshot.yml   # 每次 push 后自动截图并更新 README
 ├── docs/
-│   └── images/                    # 文档截图目录
+│   └── images/                    # 自动截图目录（GitHub Actions 维护）
 └── .claude/
-    └── skills/citizen-viz-review/ # 代码审查 Skill
+    └── skills/                    # 自定义 Claude Code Skills
+        ├── publish-xhs/           # 一键生成文案 + 启动发布
+        ├── citizen-viz-review/    # 数据提取质量审查
+        └── match-session-task/    # 跨 session 任务上下文匹配
+```
+
+---
+
+## 🤖 如何用 Claude Code 构建这个项目
+
+这个项目全程使用 [Claude Code](https://claude.ai/code) 开发，40 个 commit，从零到完整产品，无需手工写代码。
+
+### 三层 Agent 架构
+
+```
+你（决策层）
+  ├── 定义目标、控制项目走向
+  └── 调度两个专用 subagent 并行执行
+        ├── citizen-viz-reviewer   # 诊断层：分析低覆盖字段，找失败样本，输出改进方向
+        └── citizen-viz-developer  # 执行层：实施 regex 改进，运行爬虫验证，push 代码
+```
+
+两个 agent 各有独立记忆文件（`scripts/.claude/agent-memory/`），跨 session 积累领域知识。
+
+### CLAUDE.md 作为行为宪法
+
+`CLAUDE.md` 不是文档，是约束——每次 session Claude Code 都会读它，确保：
+- 任务开始时自动读取上次进度
+- 涉及覆盖率优化时必须用双 agent 并行
+- 每次 push 同步更新 README
+- 截图由 GitHub Actions 全自动完成
+
+### 自定义 Skills
+
+| Skill | 触发词 | 作用 |
+|-------|--------|------|
+| `publish-xhs` | "发小红书" | 生成文案 → 处理图片 → 启动 Playwright 发布 |
+| `citizen-viz-review` | "审查数据" | 系统化分析爬虫字段提取质量 |
+| `match-session-task` | session 开始时 | 自动对齐上次任务进度 |
+
+### 全链路自动化闭环
+
+```
+需求描述
+  → CLAUDE.md 约束 agent 行为
+  → reviewer + developer 并行执行
+  → developer push 代码
+  → GitHub Actions 自动截图
+  → README 图片自动更新
+  → publish-xhs skill 发布小红书
 ```
 
 ---
